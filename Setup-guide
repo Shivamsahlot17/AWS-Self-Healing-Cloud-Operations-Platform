@@ -1,0 +1,322 @@
+# Setup Guide
+
+## Prerequisites
+
+Before setting up the project, ensure you have:
+
+* AWS Account
+* EC2 Instance (Amazon Linux 2023)
+* IAM Role with CloudWatchAgentServerPolicy attached
+* AWS CLI configured
+* Basic understanding of EC2, CloudWatch, Lambda, and EventBridge
+
+---
+
+# Step 1: Launch EC2 Instance
+
+1. Navigate to EC2 Console.
+2. Launch an Amazon Linux 2023 instance.
+3. Attach an IAM role containing:
+
+* CloudWatchAgentServerPolicy
+
+4. Connect to the instance using SSH.
+
+---
+
+# Step 2: Install CloudWatch Agent
+
+Install the agent:
+
+```bash
+sudo yum install amazon-cloudwatch-agent -y
+```
+
+Run the configuration wizard:
+
+```bash
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-config-wizard
+```
+
+Start the agent:
+
+```bash
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+-a fetch-config \
+-m ec2 \
+-c file:/opt/aws/amazon-cloudwatch-agent/bin/config.json \
+-s
+```
+
+Verify:
+
+```bash
+sudo systemctl status amazon-cloudwatch-agent
+```
+
+---
+
+# Step 3: Configure SNS Notifications
+
+1. Open Amazon SNS.
+2. Create a Standard Topic:
+
+```
+CloudOpsAlerts
+```
+
+3. Create an email subscription.
+4. Confirm the subscription from your email.
+
+---
+
+# Step 4: Create CloudWatch Alarms
+
+Create alarms for:
+
+### CPU Utilization
+
+Threshold:
+
+```
+80%
+```
+
+### Memory Usage
+
+Metric:
+
+```
+mem_used_percent
+```
+
+Threshold:
+
+```
+80%
+```
+
+### Disk Usage
+
+Metric:
+
+```
+disk_used_percent
+```
+
+Threshold:
+
+```
+80%
+```
+
+Configure all alarms to send notifications to:
+
+```
+CloudOpsAlerts
+```
+
+---
+
+# Step 5: Create CloudWatch Dashboard
+
+Create a dashboard named:
+
+```
+CloudOpsDashboard
+```
+
+Add widgets for:
+
+* CPU Utilization
+* Memory Usage
+* Disk Usage
+* Network In
+* Network Out
+
+---
+
+# Step 6: Create Lambda Functions
+
+Create three Lambda functions:
+
+### StartEC2
+
+Starts the EC2 instance.
+
+### StopEC2
+
+Stops the EC2 instance.
+
+### SelfHealingEC2
+
+Automatically starts the instance if it enters the stopped state.
+
+Attach policies:
+
+* AWSLambdaBasicExecutionRole
+* AmazonEC2FullAccess
+
+---
+
+# Step 7: Configure Self-Healing
+
+Create an EventBridge Rule:
+
+Event Pattern:
+
+```json
+{
+  "source": ["aws.ec2"],
+  "detail-type": ["EC2 Instance State-change Notification"],
+  "detail": {
+    "state": ["stopped"]
+  }
+}
+```
+
+Target:
+
+```
+SelfHealingEC2 Lambda
+```
+
+Now, whenever the instance stops, it is automatically restarted.
+
+---
+
+# Step 8: Configure EventBridge Scheduler
+
+Create two schedules.
+
+### MorningStartSchedule
+
+Time:
+
+```
+08:00 AM IST
+```
+
+Target:
+
+```
+StartEC2 Lambda
+```
+
+### NightStopSchedule
+
+Time:
+
+```
+11:00 PM IST
+```
+
+Target:
+
+```
+StopEC2 Lambda
+```
+
+These schedules optimize costs by automatically managing instance uptime.
+
+---
+
+# Step 9: Configure Backup Automation
+
+Go to:
+
+```
+EC2 → Lifecycle Manager
+```
+
+Create an EBS Snapshot Policy.
+
+Settings:
+
+* Frequency: Daily
+* Retention: 7 Days
+
+Tag:
+
+```
+Backup=True
+```
+
+This enables automatic backups and disaster recovery.
+
+---
+
+# Project Architecture
+
+```text
+                     EventBridge Scheduler
+                    /                     \
+                   /                       \
+           StartEC2 Lambda             StopEC2 Lambda
+                   \                       /
+                    \                     /
+                       EC2 Instance
+                             │
+                    CloudWatch Agent
+                             │
+                    CloudWatch Metrics
+                             │
+                ┌────────────┴────────────┐
+                │                         │
+          CloudWatch Alarms         CloudWatch Dashboard
+                │
+               SNS
+                │
+           Email Alerts
+                │
+ EventBridge Rule (Stopped Instance)
+                │
+         SelfHealingEC2 Lambda
+                │
+           Restart EC2 Instance
+
+        EBS Snapshot Lifecycle Policy
+```
+
+---
+
+# AWS Services Used
+
+* Amazon EC2
+* CloudWatch
+* CloudWatch Agent
+* SNS
+* Lambda
+* EventBridge
+* EventBridge Scheduler
+* IAM
+* EBS
+* EBS Lifecycle Manager
+
+---
+
+# Features
+
+✅ Monitoring
+
+✅ Alerts
+
+✅ Dashboard
+
+✅ Self-Healing
+
+✅ Cost Optimization
+
+✅ Backup and Recovery
+
+✅ Event-Driven Automation
+
+---
+
+# Future Improvements
+
+* Least Privilege IAM
+* CloudWatch Logs Integration
+* Auto Scaling
+* Multi-instance Support
+* Terraform Automation
